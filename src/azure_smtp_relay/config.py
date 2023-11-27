@@ -31,6 +31,8 @@ License:
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 """
+import ipcalc
+
 KEEPALIVE_INTERVAL = 1
 AZURE_SEND_TIMEOUT = 30
 AZURE_SEND_QUEUE_MAX_AGE = 43200 # 12 hours
@@ -99,7 +101,7 @@ class SmtpConfig:
         self.port = int(port)
         self.from_address = from_address
         self.allowed_dest_domains = allowed_dest_domains
-        self.allowed_subnets = allowed_subnets
+        self.allowed_subnets = [ipcalc.Network(x) for x in allowed_subnets]
         self.move_from_replyto = move_from_replyto
         self.message_retry = message_retry
         self.message_retry_delay = message_retry_delay
