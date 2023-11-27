@@ -1,0 +1,35 @@
+[project]
+name = "azure_smtp_relay"
+version = "1.0.0"
+description = "Python SMTP service using aiosmtpd that relay's through Azure Email Communication Service"
+authors = [{name = "Thomas Dunteman", email= "git@learningtopi.com"}]
+keywords = ["queue", "thread", "async"]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+	"License :: OSI Approved :: MIT License",
+	"Programming Language :: Python :: 3",
+	"Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Communications :: Email",
+    "Topic :: Communications :: Email :: Mail Transport Agents"]
+dependencies = [
+	"aiosmtpd==1.4.4.post2",
+	"azure-identity==1.15.0",
+	"ipcalc==1.99.0",
+	"logging-handler==1.0.7",
+	"parameter-verification==0.1.1",
+	"queue-processor==1.1.0",
+	"requests==2.31.0",
+	"azure-communication-email==1.0.0"]
+
+[project.urls]
+"homepage" = "https://www.learningtopi.com/python-modules-applications/azure_smtp_relay/"
+"bug tracker" = "https://github.com/LearningToPi/azure_smtp_relay/issues"
+"source code" = "https://github.com/LearningToPi/azure_smtp_relay"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.deploy_manager]
+test_mounts = "local/settings.json:local/settings.json"

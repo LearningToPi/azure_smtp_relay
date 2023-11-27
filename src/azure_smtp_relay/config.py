@@ -36,7 +36,8 @@ AZURE_SEND_TIMEOUT = 30
 AZURE_SEND_QUEUE_MAX_AGE = 43200 # 12 hours
 AZURE_MESSAGE_RETRY = 3
 AZURE_MESSAGE_RETRY_DELAY = 3600 # 1 hour
-RETAIN_LOG_HOURS = 72
+RETAIN_LOG_DAYS = 72
+RELAY_QUEUE_LIMIT = 100
 
 
 class SmtpConfig:
@@ -52,7 +53,7 @@ class SmtpConfig:
         move_from_replyto (bool): Whether to override the 'From' address with the 'Reply-To' address.
         message_retry (int): The number of retry attempts for failed messages.
         message_retry_delay (int): The delay (in seconds) between message retry attempts.
-        retain_log_hours (int): The number of hours to retain log entries.
+        retain_log_days (int): The number of days to retain log entries.
         send_timeout (int): The timeout (in seconds) for sending messages.
 
     Methods:
@@ -66,7 +67,7 @@ class SmtpConfig:
     """
     def __init__(self, address:str, port:int|str, from_address:str, allowed_dest_domains:list, allowed_subnets:list, 
                  move_from_replyto=True, message_retry:int=AZURE_MESSAGE_RETRY, message_retry_delay:int=AZURE_MESSAGE_RETRY_DELAY,
-                 retain_log_hours:int=RETAIN_LOG_HOURS, send_timeout:int=AZURE_SEND_TIMEOUT):
+                 retain_log_days:int=RETAIN_LOG_DAYS, send_timeout:int=AZURE_SEND_TIMEOUT):
         """
         Initialize the SmtpConfig instance.
 
@@ -79,7 +80,7 @@ class SmtpConfig:
             move_from_replyto (bool): Whether to override the 'From' address with the 'Reply-To' address.
             message_retry (int): The number of retry attempts for failed messages.
             message_retry_delay (int): The delay (in seconds) between message retry attempts.
-            retain_log_hours (int): The number of hours to retain log entries.
+            retain_log_days (int): The number of days to retain log entries.
             send_timeout (int): The timeout (in seconds) for sending messages.
 
         Returns:
@@ -87,18 +88,6 @@ class SmtpConfig:
 
         Notes:
             This constructor initializes the SmtpConfig instance with the provided configuration parameters.
-
-        Args Description:
-            - address (str): The address of the SMTP server.
-            - port (int|str): The port number for the SMTP server.
-            - from_address (str): The default sender address for outgoing emails.
-            - allowed_dest_domains (list): A list of allowed destination domains.
-            - allowed_subnets (list): A list of allowed subnets.
-            - move_from_replyto (bool): Whether to override the 'From' address with the 'Reply-To' address.
-            - message_retry (int): The number of retry attempts for failed messages.
-            - message_retry_delay (int): The delay (in seconds) between message retry attempts.
-            - retain_log_hours (int): The number of hours to retain log entries.
-            - send_timeout (int): The timeout (in seconds) for sending messages.
 
         Example:
             Example of creating an instance of SmtpConfig:
@@ -114,5 +103,5 @@ class SmtpConfig:
         self.move_from_replyto = move_from_replyto
         self.message_retry = message_retry
         self.message_retry_delay = message_retry_delay
-        self.retain_log_hours = retain_log_hours
+        self.retain_log_days = retain_log_days
         self.send_timeout = send_timeout

@@ -139,6 +139,7 @@ class SmtpHandler:
             return f'550 {session.peer[0] if session.peer is not None else None} not permitted'
 
         if not domain_ok:
+            self._logger.warning(f"Rejected mail relay from {session.peer[0] if session.peer is not None else None}:{session.peer[1] if session.peer is not None else None} to {address}")
             return "550 not relaying to that domain"
 
         return "250 OK"

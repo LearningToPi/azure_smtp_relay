@@ -49,9 +49,8 @@ from aiosmtpd.controller import Controller
 from queue_processor import QueueManager
 from .address_list import email_address_valid, email_domain_valid
 
-from .config import KEEPALIVE_INTERVAL, AZURE_SEND_TIMEOUT, AZURE_SEND_QUEUE_MAX_AGE, AZURE_MESSAGE_RETRY, AZURE_MESSAGE_RETRY_DELAY, RETAIN_LOG_HOURS, SmtpConfig
+from .config import KEEPALIVE_INTERVAL, AZURE_SEND_TIMEOUT, AZURE_SEND_QUEUE_MAX_AGE, AZURE_MESSAGE_RETRY, AZURE_MESSAGE_RETRY_DELAY, RETAIN_LOG_DAYS, RELAY_QUEUE_LIMIT, SmtpConfig
 from .handler import SmtpHandler
-
 
 
 class AzureSmtpRelay:
@@ -82,20 +81,22 @@ class AzureSmtpRelay:
         >>> relay_instance.close()
 
     """
-    def __init__(self, address:str, port:int|str, from_address:str, allowed_dest_domains:list, allowed_subnets:list,
-                 azure_auth:ClientSecretCredential|AzureKeyCredential, endpoint:str, log_level=INFO, max_queue=100, enable_send_log=True,
-                 send_queue_max_age=AZURE_SEND_QUEUE_MAX_AGE, queue_timeout=AZURE_SEND_TIMEOUT*2, move_from_replyto=True,
+    def __init__(self, address:str, port:int|str, from_address:str, domains:list, subnets:list,
+                 azure_auth:ClientSecretCredential|AzureKeyCredential, endpoint:str, log_level=INFO, max_queue_length=RELAY_QUEUE_LIMIT,
+                 enable_send_log=True, retain_log_days:int=RETAIN_LOG_DAYS,
+                 send_queue_max_age=AZURE_SEND_QUEUE_MAX_AGE, move_from_replyto=True,
                  message_retry:int=AZURE_MESSAGE_RETRY, message_retry_delay:int=AZURE_MESSAGE_RETRY_DELAY,
-                 retain_log_hours:int=RETAIN_LOG_HOURS, send_timeout=AZURE_SEND_TIMEOUT):
+                 send_timeout=AZURE_SEND_TIMEOUT, name:str|None=None):
         """
         Initialize the AzureSmtpRelay instance.
 
         Args:
             address (str): The address for the SMTPD service.
+            name(str|None): A friendly name for the STMPD service (used in log messages).
             port (int|str): The port for the SMTPD service.
             from_address (str): The sender's email address.
-            allowed_dest_domains (list): List of allowed destination email domains.
-            allowed_subnets (list): List of allowed subnets.
+            domains (list): List of allowed destination email domains.
+            subnets (list): List of allowed subnets.
             azure_auth (ClientSecretCredential|AzureKeyCredential): Azure authentication credentials.
             endpoint (str): The Azure endpoint for sending emails.
             log_level (int): The logging level for the logger.
@@ -106,7 +107,7 @@ class AzureSmtpRelay:
             move_from_replyto (bool): Flag to move 'From' to 'ReplyTo' in the processed message.
             message_retry (int): Number of retry attempts for sending a message to Azure.
             message_retry_delay (int): Delay (in seconds) between message retry attempts.
-            retain_log_hours (int): Number of hours to retain log entries.
+            retain_log_days (int): Number of days to retain log entries.
             send_timeout (int): Timeout (in seconds) for sending messages to Azure.
 
         Returns:
@@ -122,18 +123,19 @@ class AzureSmtpRelay:
                                                 azure_auth=your_azure_auth, endpoint='your_azure_endpoint')
 
         """
-        self._config = SmtpConfig(address=address, port=port, from_address=from_address, allowed_dest_domains=allowed_dest_domains,
-                                  allowed_subnets=allowed_subnets, move_from_replyto=move_from_replyto, message_retry=message_retry,
-                                  message_retry_delay=message_retry_delay, retain_log_hours=retain_log_hours, send_timeout=send_timeout)
-        self._logger = create_logger(log_level, name=f"smtpd {self._config.address}:{self._config.port}")
+        self._config = SmtpConfig(address=address, port=int(port), from_address=from_address, allowed_dest_domains=domains,
+                                  allowed_subnets=subnets, move_from_replyto=bool(move_from_replyto), message_retry=int(message_retry),
+                                  message_retry_delay=int(message_retry_delay), retain_log_days=int(retain_log_days), send_timeout=int(send_timeout))
+        self._logger = create_logger(log_level, name=f"smtpd {self._config.address}:{self._config.port}" + (f"({name})" if name is not None else ''))
         self._smtpd = None
+        self.name = name
         self._smtpd_check_thread = None
         self._smtpd_check_thread_stop = False
         self._smtpd_restart_counter = 0
         self.enable_send_log = enable_send_log
         self._log = []
-        self._message_queue = QueueManager(name='AzureSMTP', depth=max_queue, command_func=self._send_message, delay_ms=0,
-                                           max_age=send_queue_max_age, timeout=queue_timeout, raise_queue_full=True)
+        self._message_queue = QueueManager(name='AzureSMTP', depth=int(max_queue_length), command_func=self._send_message, delay_ms=0,
+                                           max_age=int(send_queue_max_age), timeout=int(send_timeout)*2, raise_queue_full=True)
         self._lock = Lock()
         if isinstance(azure_auth, ClientSecretCredential) and isinstance(endpoint, str):
             self._azure_client = EmailClient(endpoint=endpoint, credential=azure_auth)
@@ -143,7 +145,7 @@ class AzureSmtpRelay:
         # run some checks to ensure valid data
         if not email_address_valid(from_address):
             raise ValueError(f"{from_address} is not a valid email!")
-        for domain in allowed_dest_domains:
+        for domain in domains:
             if not email_domain_valid(domain):
                 raise ValueError(f"Domain {domain} is not a valid email domain!")
         try:
@@ -321,7 +323,7 @@ class AzureSmtpRelay:
         try:
             self._logger.info(f"Sending queued message from {message.get('replyTo')} to {message.get('recipients')} subject {message['content'].get('subject')}")
 
-            poller = self._azure_client.begin_send(message)
+            poller = self._azure_client.begin_send(message=message, connection_timeout=float(self._config.send_timeout))
             poller.wait(self._config.send_timeout)
             if str(poller.result().get('status')).lower() != 'succeeded':
                 # if Azure poller did not come back as scceeded, requeue until we hit the max
@@ -330,7 +332,7 @@ class AzureSmtpRelay:
                         with self._lock:
                             self._log[log_index].update(azure_result=poller.result(), status='REQUEUE')
                     self._logger.warning(f"FAILED, requeing ({self._config.message_retry - retry}/{self._config.message_retry}) message from {message.get('replyTo')} to {message.get('recipients')}" \
-                                         f" subject {message['content'].get('subject')}: {poller.result()}, retry: {retry}")
+                                            f" subject {message['content'].get('subject')}: {poller.result()}, retry: {retry}")
                     self._message_queue.add(kwargs={'message': message, 'retry': retry - 1}, run_after=time() + self._config.message_retry_delay)
                 else:
                     if self.enable_send_log:
@@ -344,7 +346,7 @@ class AzureSmtpRelay:
                         self._log[log_index].update(azure_result=poller.result(), status='OK')
                 self._logger.debug(f"Success sending message from {message.get('replyTo')} to {message.get('recipients')} subject {message['content'].get('subject')}: {poller.result()}")
         except Exception as e:
-            # An exception was raised, ie TCP timeout or DNS resolve failure. Requeue until we hit the max
+           # An exception was raised, ie TCP timeout or DNS resolve failure. Requeue until we hit the max
             if retry > 0:
                 if self.enable_send_log:
                     with self._lock:
@@ -359,10 +361,9 @@ class AzureSmtpRelay:
                 self._logger.error(f"EXCEPTION RAISED, DISCARDING MESSAGE from {message.get('replyTo')} to {message.get('recipients')} subject {message['content'].get('subject')}: " \
                                    f"{e}, retry: {retry}")
 
-
         # cleanup the log
         with self._lock:
-            while len(self._log) > 0 and self._log[0]['time'] + (self._config.retain_log_hours * 3600) < time():
+            while len(self._log) > 0 and self._log[0]['time'] + (self._config.retain_log_days * 86400) < time():
                 del self._log[0]
 
     @property
