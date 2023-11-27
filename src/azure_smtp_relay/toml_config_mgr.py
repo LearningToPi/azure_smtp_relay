@@ -159,7 +159,9 @@ class TomlConfigMgr:
             parser = argparse.ArgumentParser()
         for section in self._config.keys():
             for key, settings in self._config[section].items():
-                parser.add_argument(f"--{key.replace('_','-')}", default=settings.get('default', None), help=f"[{section}] " + str(settings.get('help', '')))
+                parser.add_argument(f"--{key.replace('_','-')}",
+                                    default=settings.get('default', None),
+                                    help=f"[{section}] " + (f"(DEFAULT: {settings.get('default', None)}) " if settings.get('default', None) is not None else '') + str(settings.get('help', '')))
         return parser
 
 
