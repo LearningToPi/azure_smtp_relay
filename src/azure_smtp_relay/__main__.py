@@ -3,6 +3,8 @@ import configparser
 import inspect
 from datetime import datetime
 from time import time, sleep
+import signal
+import sys
 from azure.identity import ClientSecretCredential
 from azure.core.credentials import AzureKeyCredential
 from smtplib import SMTP
@@ -122,9 +124,17 @@ def main():
             run_config.update(section, key, args.get(key))
 
     # start the relay server
-    logger = create_logger(WARNING, name='RelayException')
+    logger = create_logger(INFO, name='RelayException')
     restart_from_exception = False
     restart_info = []
+    relay_server = None # set to None before entering loop to allow for easier graceful exit
+
+    def sigterm_handler(signum, frame):
+        logger.info("SIGTERM received. Shutting down...")
+        raise(SystemExit)
+        
+    signal.signal(signal.SIGTERM, sigterm_handler)
+
     while True:
         try:
             # create the azure login object
@@ -164,14 +174,15 @@ def main():
                     logger.error(f"Error sending email regarding relay service failure: {e}. Original failure message: Relay service failed at {datetime.fromtimestamp(restart_info[-1]['time'])}, error {restart_info[-1]['error']}")
 
             # raise an exception if the relay server is down
-            while True:
-                try:
+            try:
+                while True:
                     if not relay_server.smtp_ok:
                         raise ChildProcessError(f"Relay service not operational.  SMTP status: {relay_server.smtp_ok}, message queue length: {relay_server.message_queue_length}. Queued messages will be lost.")
-                except KeyboardInterrupt:
-                    logger.info("Interrupt received.  Stopping relay server...")
-                    relay_server.close()
-                    quit(0)
+                    sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Interrupt received.  Stopping relay server...")
+                relay_server.close()
+                quit(0)
 
         except Exception as e:
             # the server crashed, log it and wait before restarting
@@ -184,6 +195,10 @@ def main():
             else:
                 logger.critical(f"Restarting the azure relay service in {RESTART_DELAY_SECONDS} seconds.  Restarted {len([x for x in restart_info if x.get('time') > time() - 3600])} times in past hour...")
             sleep(int(RESTART_DELAY_SECONDS))
+        finally:
+            if relay_server:
+                relay_server.close()
+            quit(0)
 
 if __name__ == "__main__":
     main()
