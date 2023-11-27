@@ -8,4 +8,4 @@ requests==2.31.0
 azure-communication-email==1.0.0
 validators==0.22.0
 ###
-azure_smtp_relay==1.0.0
+azure_smtp_relay==1.0.1
