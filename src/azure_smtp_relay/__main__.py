@@ -97,7 +97,7 @@ TOML_CONFIG = {
 
 def main():
     # setup the argument parser
-    parser = argparse.ArgumentParser(prog="azure_smtp_relay.py", description="Manage the build, test and Git deployment of Python packages.")
+    parser = argparse.ArgumentParser(prog="python3 -m azure_smtp_relay", description="Python SMTP service using aiosmtpd that relay's through Azure Email Communication Service")
     run_config = TomlConfigMgr(**TOML_CONFIG)
     run_config.update_argparser(parser)
 
