@@ -16,14 +16,13 @@ LABEL org.label-schema.vcs-ref = "0965349"
 LABEL org.label-schema.version = "1.0.4"
 LABEL org.label-schema.release = "py3.11-1"
 LABEL org.label-schema.architecture = "amd64"
-LABEL org.label-schema.changelog-url = "https://github.com/LearningToPi/azure_smtp_relay/blob/main/release_notes/v1.0.0.md"
+LABEL org.label-schema.changelog-url = "https://github.com/LearningToPi/azure_smtp_relay/blob/main/release_notes/v1.0.4.md"
 
 LABEL org.label-schema.docker.cmd = 'docker run --name azure_smtp_relay -d -p 25:10025 -v config.toml:/app/config.toml learningtopi/azure_smtp_relay --subnets 192.168.0.0/16 --domains my-email-domain.com'
 LABEL org.label-schema.docker.cmd.devel = 'docker run --name azure_smtp_relay -d -p 25:10025 -v config.toml:/app/config.toml learningtopi/azure_smtp_relay --subnets 192.168.0.0/16 --domains my-email-domain.com --log-level DEBUG'
 LABEL org.label-schema.docker.cmd.help = "docker run --rm -it learningtopi/azure_smtp_relay --help"
 
 EXPOSE 10025/tcp
-VOLUME /apps
 WORKDIR /apps
 
 RUN adduser --disabled-password --gecos '' $USERNAME -u $UID
