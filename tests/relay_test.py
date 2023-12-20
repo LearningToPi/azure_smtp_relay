@@ -271,7 +271,7 @@ class azure_relay_test(unittest.TestCase):
             else:
                 raise ValueError(f"Unknown credential type: {azure_cred['type']}")
             updated_config = dict(config)
-            updated_config['azure_relay']['allowed_subnets'] = '169.254.254.254/32' # override the allowed subnet to a link local address
+            updated_config['azure_relay']['subnets'] = '169.254.254.254/32' # override the allowed subnet to a link local address
             test_name = f"6/{azure_cred['type']}"
             server = AzureSmtpRelay(azure_auth=cred, name=test_name, port=config['test_port_range'] + test_num, **updated_config['azure_relay'])
             self.assertTrue(server.smtp_ok)
