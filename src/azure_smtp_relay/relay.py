@@ -124,7 +124,7 @@ class AzureSmtpRelay:
 
         """
         self._config = SmtpConfig(address=address, port=int(port), from_address=from_address, allowed_dest_domains=domains,
-                                  allowed_subnets=subnets, move_from_replyto=bool(move_from_replyto), message_retry=int(message_retry),
+                                  allowed_subnets=subnets if isinstance(subnets, list) else [subnets], move_from_replyto=bool(move_from_replyto), message_retry=int(message_retry),
                                   message_retry_delay=int(message_retry_delay), retain_log_days=int(retain_log_days), send_timeout=int(send_timeout))
         self._logger = create_logger(log_level, name=f"smtpd {self._config.address}:{self._config.port}" + (f"({name})" if name is not None else ''))
         self._smtpd = None
@@ -194,6 +194,9 @@ class AzureSmtpRelay:
             self._logger.info('Termating keepalive thread...')
             self._smtpd_check_thread_stop = True
             self._smtpd_check_thread.join(timeout=KEEPALIVE_INTERVAL * 3)
+            terminate_time = time() + 3
+            while self._smtpd_check_thread.is_alive() and time() < terminate_time:
+                sleep(.5)
             self._smtpd_check_thread = None
         if self._smtpd is not None:
             self._logger.info('Stopping SMTPD service...')
