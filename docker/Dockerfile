@@ -13,8 +13,8 @@ LABEL org.label-schema.usage "/app/README.md"
 LABEL org.label-schema.url = "https://www.learningtopi.com/python-modules-applications/azure_smtp_relay/"
 LABEL org.label-schema.vcs-url = "https://github.com/LearningToPi/azure_smtp_relay/tree/v1.0.4"
 LABEL org.label-schema.vcs-ref = "0965349"
-LABEL org.label-schema.version = "1.0.4"
-LABEL org.label-schema.release = "py3.11-1"
+LABEL org.label-schema.version = "1.0.5"
+LABEL org.label-schema.release = "py3.11-1.0.5"
 LABEL org.label-schema.architecture = "amd64"
 LABEL org.label-schema.changelog-url = "https://github.com/LearningToPi/azure_smtp_relay/blob/main/release_notes/v1.0.4.md"
 
@@ -25,6 +25,7 @@ LABEL org.label-schema.docker.cmd.help = "docker run --rm -it learningtopi/azure
 EXPOSE 10025/tcp
 WORKDIR /apps
 
+RUN apt update && apt install net-tools -y && apt clean
 RUN adduser --disabled-password --gecos '' $USERNAME -u $UID
 RUN mkdir /app && chown $USERNAME:$USERNAME /app
 USER $USERNAME:$USERNAME
@@ -37,4 +38,5 @@ RUN pip3 install -r /app/requirements.txt
 
 
 ENTRYPOINT ["/app/entrypoint.sh"]
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD netstat -tlpen | grep 10025 > /dev/null; if [ 0 != $? ]; then exit 1; fi;
 CMD []

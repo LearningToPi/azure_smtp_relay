@@ -78,7 +78,7 @@ class ip:
             str: String representation of the IP object.
         """
         return str(self.ip)
-    
+
 class network:
     """
     Represents an IP network.
@@ -110,7 +110,7 @@ class network:
             str: String representation of the Network object.
         """
         return str(self.network)
-    
+
 class email:
     """
     Represents an email address.
@@ -147,7 +147,7 @@ class email:
             str: String representation of the Email object.
         """
         return self.email
-    
+
 class domain:
     """
     Represents a domain.
@@ -212,7 +212,7 @@ class url:
         if not validators.url(url_string):
             raise ValueError(f"URL '{url_string}' is not valid.")
         self.url = url_string
-        
+
     def __str__(self):
         """
         String representation of the URL object.
@@ -358,7 +358,7 @@ class TomlConfigMgr:
                         missing_params[section] = {}
                     missing_params[section] = self._config[section][key]
         return missing_params
-    
+
     def sections(self) -> list:
         """
         Return a list of the config sections.
@@ -367,7 +367,7 @@ class TomlConfigMgr:
             list: List of section names.
         """
         return list(self._config.keys())
-    
+
     def section_keys(self, section:str) -> list:
         """
         Return a list of keys in a specific section.
@@ -401,7 +401,7 @@ class TomlConfigMgr:
             else:
                 return config[section]
         raise ValueError(f"Required configuration has not been provided. Missing values: {self.required_parameters_missing}")
-    
+
     def update_argparser(self, parser=None) -> argparse.ArgumentParser:
         """
         Update or create an ArgumentParser with configuration parameters.
