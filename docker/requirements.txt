@@ -1,4 +1,4 @@
-aiosmtpd==1.4.5
+aiosmtpd==1.4.6
 azure-identity==1.15.0
 ipcalc==1.99.0
 logging-handler==1.0.7
