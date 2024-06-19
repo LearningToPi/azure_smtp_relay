@@ -45,7 +45,7 @@ import configparser
 import argparse
 import ipcalc
 import validators
-
+import os
 
 class ip:
     """
@@ -223,6 +223,10 @@ class url:
         return self.url
 
 
+# Designate classes that should be cast to a string when returning
+CAST_TO_STR = (ip, network, email, domain, url)
+
+
 class TomlConfigMgr:
     """
     Configuration manager for handling TOML configuration files.
@@ -268,7 +272,12 @@ class TomlConfigMgr:
 
         Returns:
             None
+
+        Raises:
+            FileNotFoundError - If passed file not present
         """
+        if not os.path.isfile(filename):
+            raise FileNotFoundError(f"File '{filename}' not found!")
         self._toml_config = configparser.ConfigParser()
         self._toml_config.read(filename)
         for section in self._toml_config.sections():
@@ -287,6 +296,8 @@ class TomlConfigMgr:
         Returns:
             None
         """
+        # remove '[section]-' from key (account for 'prepend_section' option when creating argparser)
+        key = key.replace(section + '-', '')
         if section not in self._config:
             raise KeyError(f"Section '{section}' not present in config!")
         if key not in self._config[section]:
@@ -326,7 +337,11 @@ class TomlConfigMgr:
         Returns:
             The value associated with the key.
         """
-        return self._config[section][key].get('value', self._config[section][key].get('default', None))
+        value = self._config[section][key].get('value', self._config[section][key].get('default', None))
+        # Need to recast to a string if one of the special classes
+        if isinstance(value, CAST_TO_STR):
+            return str(value)
+        return value
 
     @property
     def required_ok(self):
@@ -402,12 +417,13 @@ class TomlConfigMgr:
                 return config[section]
         raise ValueError(f"Required configuration has not been provided. Missing values: {self.required_parameters_missing}")
 
-    def update_argparser(self, parser=None) -> argparse.ArgumentParser:
+    def update_argparser(self, parser=None, prepend_sections=False) -> argparse.ArgumentParser:
         """
         Update or create an ArgumentParser with configuration parameters.
 
         Args:
             parser (argparse.ArgumentParser, optional): The ArgumentParser object to update. Defaults to None.
+            prepend_sections (Bool, optional): If True, section names are prepended to variable names
 
         Returns:
             argparse.ArgumentParser: Updated or newly created ArgumentParser object.
@@ -416,7 +432,7 @@ class TomlConfigMgr:
             parser = argparse.ArgumentParser()
         for section in self._config.keys():
             for key, settings in self._config[section].items():
-                parser.add_argument(f"--{key.replace('_','-')}",
+                parser.add_argument(f"--{section.replace('_', '-') + '-' if prepend_sections else ''}{key.replace('_','-')}",
                                     default=settings.get('default', None),
                                     help=f"[{section}] " + (f"(DEFAULT: {settings.get('default', None)}) " if settings.get('default', None) is not None else '') + str(settings.get('help', '')))
         return parser
