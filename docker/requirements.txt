@@ -4,7 +4,7 @@ ipcalc==1.99.0
 logging-handler==1.0.7
 parameter-verification==0.1.1
 queue-processor==1.1.0
-requests==2.31.0
+requests==2.32.0
 azure-communication-email==1.0.0
 validators==0.22.0
 ###
