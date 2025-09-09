@@ -55,7 +55,7 @@ class SmtpHandler:
     Example:
         Example of using the SmtpHandler class:
         >>> handler = SmtpHandler(logger=your_logger, config=your_smtp_config, queue=your_queue_manager)
-        >>> smtpd = Controller(handler, hostname='0.0.0.0', port=10025, ready_timeout=10)
+        >>> smtpd = Controller(handler, hostname='0.0.0.0', port=10025, ready_timeout=10)100.64.102.2
         >>> smtpd.start()
 
     """
@@ -220,7 +220,7 @@ class SmtpHandler:
                     mail_from.add(line.split(':')[1].lstrip())
                 elif line.startswith('Reply-To:'):
                     reply_to.add(line.split(':')[1].lstrip())
-                elif line.startswith('Mime-Version:'):
+                elif line.lower().startswith('mime-version:'):
                     mime_data = True
                 # maintain the position so we can capture the message data
                 pos +=1
@@ -236,37 +236,53 @@ class SmtpHandler:
 
             # get the message body
             if mime_data:
-                # loop through and capture the MIME header
-                mime_data = {}
-                while message_lines[pos] != '':
-                    if message_lines[pos].startswith('Content-Type:'):
-                        mime_re = re.search(r"Content-Type:\s*(?P<type>[ -~^/]+/[ -~^/;]+);\s*charset=(?P<charset>[ -~]+)", message_lines[pos])
-                        if mime_re:
-                            mime_data['type'] = mime_re.groupdict().get('type', None)
-                            mime_data['charset'] = mime_re.groupdict().get('charset', None)
-                    elif message_lines[pos].startswith('Content-Transfer-Encoding:'):
-                        mime_re = re.search(r"Content-Transfer-Encoding:\s*(?P<encoding>[ -~^/]+)", message_lines[pos])
-                        if mime_re:
-                            mime_data['encoding'] = mime_re.groupdict().get('encoding', None)
-                    elif message_lines[pos].startswith('Content-Disposition:'):
-                        mime_re = re.search(r"Content-Disposition:\s*(?P<disposition>[ -~^/]+)", message_lines[pos])
-                        if mime_re:
-                            mime_data['disposition'] = mime_re.groupdict().get('disposition', None)
-                    elif 'MIME_boundary' in message_lines[pos]:
-                        mime_re = re.search(r"[-]*(?P<boundary>MIME_boundary_[a-zA-Z0-9]+)", message_lines[pos])
-                        if mime_re:
-                            mime_data['boundary'] = mime_re.groupdict().get('boundary', None)
-                    pos += 1
-                # get find the line where the MIME data ends
-                pos2 = pos + 1
-                while pos2 < len(message_lines):
-                    if mime_data.get('boundary', None) in message_lines[pos2]:
+                mime_part = {}
+                # loop until the end
+                while pos < len(message_lines):
+                    # loop until the next end if the mime header
+                    mime_part['data'] = ''
+                    # if the line ENDS with '--' we have reached the end of the mime part and should break out
+                    if message_lines[pos].endswith('--'):
                         break
-                    pos2 += 1
-                try:
-                    message['content']['html'] = base64.b64decode(''.join(message_lines[pos:pos2])).decode(mime_data.get('charset', 'utf-8'))
-                except Exception as e:
-                    raise ValueError(f"Unable to decode message MIME data: {mime_data}, error: {e}") from e
+
+                    while message_lines[pos] != '':
+                        mime_content_type_re = re.search(r"[Cc][Oo][Nn][Tt][Ee][Nn][Tt]-[Tt][Yy][Pp][Ee]:\s*(?P<type>[ -~^/]+/[ -~^/;]+);\s*", message_lines[pos])
+                        mime_charset_re = re.search(r'charset="(?P<charset>[ -~]+)"', message_lines[pos])
+                        mime_version_re = re.search(r'[Mm][Ii][Mm][Ee]-[Vv][Ee][Rr][Ss][Ii][Oo][Nn]: (?P<version>[0-9.]+)', message_lines[pos])
+                        mime_transfer_encoding_re = re.search(r"[Cc][Oo][Nn][Tt][Ee][Nn][Tt]-[Tt][Rr][Aa][Nn][Ss][Ff][Ee][Rr]-[Ee][Nn][Cc][Oo][Dd][Ii][Nn][Gg]:\s*(?P<encoding>[ -~^/]+)", message_lines[pos])
+                        mime_boundary = re.search(r'boundary="?(?P<boundary>\S+)', message_lines[pos])
+                        if mime_content_type_re:
+                            mime_part['content-type'] = mime_content_type_re.groupdict()['type']
+                        if mime_charset_re:
+                            mime_part['charset'] = mime_charset_re.groupdict()['charset']
+                        if mime_version_re:
+                            mime_part['version'] = mime_version_re.groupdict()['version']
+                        if mime_transfer_encoding_re:
+                            mime_part['encoding'] = mime_transfer_encoding_re.groupdict()['encoding']
+                        if mime_boundary:
+                            mime_part['boundary'] = mime_boundary.groupdict()['boundary'].rstrip('"') # remove a trailing quote because the regex will include a double quote
+                        pos += 1
+                    
+                    # after the header, collect the mime contents until the boundary marker is reached or we reach end of data
+                    while pos < len(message_lines) and mime_part.get('boundary', '') not in message_lines[pos]:
+                        mime_part['data'] = mime_part.get('data', '') + message_lines[pos]
+                        pos += 1
+
+                    # decode the completed content
+                    try:
+                        if mime_part.get('encoding', 'base64') == 'base64':
+                            # save the content as plain text or html depending on the content type
+                            if mime_part['content-type'] == 'text/html':
+                                message['content']['html'] = base64.b64decode(mime_part.get('data', '')).decode(mime_part.get('charset', 'utf-8'))
+                            else:
+                                message['content']['plainText'] = base64.b64decode(mime_part.get('data', '')).decode(mime_part.get('charset', 'utf-8'))
+                        else:
+                            raise ValueError(f"Encoding type not supported. Received MIME encoding {mime_part['encoding']}. Supported encodings: utf-8")
+                    except Exception as e:
+                        raise ValueError(f"Unable to decode message MIME data: {mime_data}, error: {e}") from e
+
+                    # NOTE keep looping through the mime types, the regex will update content type, encoding, etc as applicable
+
             else:
                 message['content']['plainText'] = '\r\n'.join(message_lines[pos:])
 
