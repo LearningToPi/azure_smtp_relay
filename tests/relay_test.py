@@ -7,9 +7,11 @@ from smtplib import SMTP, SMTPRecipientsRefused
 from azure_smtp_relay import AzureSmtpRelay, ClientSecretCredential, AzureKeyCredential
 from azure_smtp_relay.config import AZURE_SEND_TIMEOUT
 from threading import Lock
+from logging_handler import create_logger, INFO
 
 PORT_LOCK = Lock()
 LAST_PORT = 0
+
 
 def get_port(port_range:list) -> int:
     ''' Issue a port from the specified port range, save the port issued to start the next time '''
@@ -48,6 +50,7 @@ class azure_relay_test(unittest.TestCase):
     def test_1_test_relay(self):
         ''' Startup a relay server and test sending messages '''
         test_num = 1
+        logger = create_logger(INFO, name=f'test_{test_num}')
         for azure_cred in config['azure_test_creds']:
             if azure_cred['type'] == 'key':
                 cred = AzureKeyCredential(**azure_cred['values'])
@@ -60,31 +63,37 @@ class azure_relay_test(unittest.TestCase):
             updated_config['azure_relay']['message_retry_delay'] = 30
             updated_config['azure_relay']['message_retry'] = 3
             test_name = f"1/{azure_cred['type']}"
+            logger.info(f"Starting SMTP Relay service on port {config['test_port_range']+ test_num}...")
             server = AzureSmtpRelay(azure_auth=cred, name=test_name, port=config['test_port_range']+ test_num, **updated_config['azure_relay'])
             self.assertTrue(server.smtp_ok)
             # send the test messages
             # NOTE: This will only confirm that Azure accepted the message for the recipient, you will need to verify that you received!
             client = SMTP(host="127.0.0.1", port=config['test_port_range'] + test_num)
             for message in config['test_emails']:
+                logger.info(f"Sending test message from {message['from']} to {message['to']}...")
                 client.sendmail(from_addr=message['from'],
                                 to_addrs=message['to'],
                                 msg=TEST_MESSAGE.format(to=message['to'], msg_from=message['from'], cc=message['cc'], subject=message['subject'], body=message['body'], test=test_name))
                 # NOTE: sendmail will raise an error if the message is not accepted
+            logger.info("closing client...")
             client.close()
 
             # wait up to the AZURE_SEND_TIMEOUT * number of messages
             start_time = time()
-            while time() < start_time + (AZURE_SEND_TIMEOUT * len(config['test_emails']) * updated_config['azure_relay']['message_retry']) or server.message_queue_length > 0:
+            while time() < start_time + (AZURE_SEND_TIMEOUT * len(config['test_emails']) * updated_config['azure_relay']['message_retry']) and server.message_queue_length > 0:
+                logger.info(f"Waiting for queue to empty. Queue length: {server.message_queue_length}")
                 sleep(1)
 
             # verify that all messages were sent successfully
             self.assertTrue(len([x for x in server.log if x['status'] == 'OK']) == len(config['test_emails']))
+            logger.info("Closing server...")
             server.close()
 
     def test_2_test_dns_failure(self):
         ''' Startup a relay server and test timeout due to a DNS lookup failure '''
         # test DNS lookup failure
         test_num = 2
+        logger = create_logger(INFO, name=f'test_{test_num}')
         for azure_cred in config['azure_test_creds']:
             if azure_cred['type'] == 'key':
                 cred = AzureKeyCredential(**azure_cred['values'])
@@ -98,6 +107,7 @@ class azure_relay_test(unittest.TestCase):
             updated_config['azure_relay']['message_retry_delay'] = 30
             updated_config['azure_relay']['message_retry'] = 3
             test_name = f"2/{azure_cred['type']}"
+            logger.info(f"Starting SMTP Relay service on port {config['test_port_range']+ test_num}...")
             server = AzureSmtpRelay(azure_auth=cred, name=test_name, port=config['test_port_range'] + test_num, **updated_config['azure_relay'])
             self.assertTrue(server.smtp_ok)
 
@@ -105,32 +115,39 @@ class azure_relay_test(unittest.TestCase):
             # NOTE: This will only confirm that Azure accepted the message for the recipient, you will need to verify that you received!
             client = SMTP(host="127.0.0.1", port=config['test_port_range'] + test_num)
             for message in config['test_emails']:
+                logger.info(f"Sending test message from {message['from']} to {message['to']}...")
                 client.sendmail(from_addr=message['from'],
                                 to_addrs=message['to'],
                                 msg=TEST_MESSAGE.format(to=message['to'], msg_from=message['from'], cc=message['cc'], subject=message['subject'], body=message['body'], test=test_name))
                 # NOTE: sendmail will raise an error if the message is not accepted
+            logger.info("closing client...")
             client.close()
 
             # wait to ensure all messages have timed out and been requeued
+            logger.info(f"waiting for all messages to timeout and be requeued in {len(config['test_emails']) * updated_config['azure_relay']['send_timeout'] + 1} seconds...")
             all_message_timeout = len(config['test_emails']) * updated_config['azure_relay']['send_timeout'] + 1
             sleep(all_message_timeout)
             self.assertTrue(len([x for x in server.log if x['status'] == 'REQUEUE']) == len(config['test_emails']))
 
             for x in range(1, updated_config['azure_relay']['message_retry']):
                 # wait for all messages to have been attempted a second time
+                logger.info(f"waiting for all messages to retry in {updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout} seconds...")
                 sleep(updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout)
                 self.assertTrue(len([x for x in server.log if x['status'] == 'REQUEUE']) == (x+1) * len(config['test_emails']))
 
             # wait one last round or the last retrans and verify that we are now failed
+            logger.info(f"waiting for last retrans in {updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout} seconds...")
             sleep(updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout)
             self.assertTrue(len([x for x in server.log if x['status'] == 'FAILED']) == len(config['test_emails']))
 
+            logger.info("Closing server...")
             server.close()
 
     def test_3_test_tcp_timeout(self):
         ''' Startup a relay server and test timeout due to a TCP or SSL failure '''
         # test timeout to a resolved address
         test_num = 3
+        logger = create_logger(INFO, name=f'test_{test_num}')
         for azure_cred in config['azure_test_creds']:
             if azure_cred['type'] == 'key':
                 cred = AzureKeyCredential(**azure_cred['values'])
@@ -144,6 +161,7 @@ class azure_relay_test(unittest.TestCase):
             updated_config['azure_relay']['message_retry_delay'] = 30
             updated_config['azure_relay']['message_retry'] = 3
             test_name = f"3/{azure_cred['type']}"
+            logger.info(f"Starting SMTP Relay service on port {config['test_port_range']+ test_num}...")
             server = AzureSmtpRelay(azure_auth=cred, name=test_name, port=config['test_port_range'] + test_num, **updated_config['azure_relay'])
             self.assertTrue(server.smtp_ok)
 
@@ -151,32 +169,39 @@ class azure_relay_test(unittest.TestCase):
             # NOTE: This will only confirm that Azure accepted the message for the recipient, you will need to verify that you received!
             client = SMTP(host="127.0.0.1", port=config['test_port_range'] + test_num)
             for message in config['test_emails']:
+                logger.info(f"Sending test message from {message['from']} to {message['to']}...")
                 client.sendmail(from_addr=message['from'],
                                 to_addrs=message['to'],
                                 msg=TEST_MESSAGE.format(to=message['to'], msg_from=message['from'], cc=message['cc'], subject=message['subject'], body=message['body'], test=test_name))
                 # NOTE: sendmail will raise an error if the message is not accepted
+            logger.info("closing client...")
             client.close()
 
             # wait to ensure all messages have timed out and been requeued
+            logger.info(f"waiting for all messages to timeout and be requeued in {len(config['test_emails']) * updated_config['azure_relay']['send_timeout'] + 1} seconds...")
             all_message_timeout = len(config['test_emails']) * updated_config['azure_relay']['send_timeout'] + 1
             sleep(all_message_timeout)
             self.assertTrue(len([x for x in server.log if x['status'] == 'REQUEUE']) == len(config['test_emails']))
 
             for x in range(1, updated_config['azure_relay']['message_retry']):
+                logger.info(f"waiting for all messages to retry in {updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout} seconds...")
                 # wait for all messages to have been attempted a second time
                 sleep(updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout)
                 self.assertTrue(len([x for x in server.log if x['status'] == 'REQUEUE']) == (x+1) * len(config['test_emails']))
 
             # wait one last round or the last retrans and verify that we are now failed
+            logger.info(f"waiting for last retrans in {updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout} seconds...")
             sleep(updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout)
             self.assertTrue(len([x for x in server.log if x['status'] == 'FAILED']) == len(config['test_emails']))
 
+            logger.info("Closing server...")
             server.close()
 
     def test_4_test_azure_bad_email(self):
         ''' Startup a relay server and test an error response from the Azure service (by providing a bad source email address) '''
         # test timeout to a resolved address
         test_num = 4
+        logger = create_logger(INFO, name=f'test_{test_num}')
         for azure_cred in config['azure_test_creds']:
             if azure_cred['type'] == 'key':
                 cred = AzureKeyCredential(**azure_cred['values'])
@@ -197,31 +222,38 @@ class azure_relay_test(unittest.TestCase):
             # NOTE: This will only confirm that Azure accepted the message for the recipient, you will need to verify that you received!
             client = SMTP(host="127.0.0.1", port=config['test_port_range'] + test_num)
             for message in config['test_emails']:
+                logger.info(f"Sending test message from {message['from']} to {message['to']}...")
                 client.sendmail(from_addr=message['from'],
                                 to_addrs=message['to'],
                                 msg=TEST_MESSAGE.format(to=message['to'], msg_from=message['from'], cc=message['cc'], subject=message['subject'], body=message['body'], test=test_name))
                 # NOTE: sendmail will raise an error if the message is not accepted
+            logger.info("closing client...")
             client.close()
 
             # wait to ensure all messages have timed out and been requeued
+            logger.info(f"waiting for all messages to timeout and be requeued in {len(config['test_emails']) * updated_config['azure_relay']['send_timeout'] + 1} seconds...")
             all_message_timeout = len(config['test_emails']) * updated_config['azure_relay']['send_timeout'] + 1
             sleep(all_message_timeout)
             self.assertTrue(len([x for x in server.log if x['status'] == 'REQUEUE']) == len(config['test_emails']))
 
             for x in range(1, updated_config['azure_relay']['message_retry']):
                 # wait for all messages to have been attempted a second time
+                logger.info(f"waiting for all messages to retry in {updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout} seconds...")
                 sleep(updated_config['azure_relay']['message_retry_delay'] + 5 + all_message_timeout)
                 self.assertTrue(len([x for x in server.log if x['status'] == 'REQUEUE']) == (x+1) * len(config['test_emails']))
 
             # wait one last round or the last retrans and verify that we are now failed
+            logger.info(f"waiting for last retrans in {updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout} seconds...")
             sleep(updated_config['azure_relay']['message_retry_delay'] + 1 + all_message_timeout)
             self.assertTrue(len([x for x in server.log if x['status'] == 'FAILED']) == len(config['test_emails']))
 
+            logger.info("Closing server...")
             server.close()
 
     def test_5_domain_restrictions(self):
         ''' Startup a relay server and test sending to a non-authorized domain '''
         test_num = 5
+        logger = create_logger(INFO, name=f'test_{test_num}')
         for azure_cred in config['azure_test_creds']:
             if azure_cred['type'] == 'key':
                 cred = AzureKeyCredential(**azure_cred['values'])
@@ -253,16 +285,20 @@ class azure_relay_test(unittest.TestCase):
                 }
             ]
             for message in fail_messages:
+                logger.info(f"Sending test message from {message['from']} to {message['to']}...")
                 self.assertRaises(SMTPRecipientsRefused, client.sendmail, **dict(from_addr=message['from'],
                                 to_addrs=message['to'],
                                 msg=TEST_MESSAGE.format(to=message['to'], msg_from=message['from'], cc=message['cc'], subject=message['subject'], body=message['body'], test=test_name)))
                 # NOTE: sendmail will raise an error if the message is not accepted
+            logger.info("closing client...")
             client.close()
+            logger.info("Closing server...")
             server.close()
 
     def test_6_ip_restrictions(self):
         ''' Startup a relay server and test sending to a non-authorized relay ip '''
         test_num = 6
+        logger = create_logger(INFO, name=f'test_{test_num}')
         for azure_cred in config['azure_test_creds']:
             if azure_cred['type'] == 'key':
                 cred = AzureKeyCredential(**azure_cred['values'])
@@ -280,11 +316,14 @@ class azure_relay_test(unittest.TestCase):
             # NOTE: This will only confirm that Azure accepted the message for the recipient, you will need to verify that you received!
             client = SMTP(host="127.0.0.1", port=config['test_port_range'] + test_num)
             for message in config['test_emails']:
+                logger.info(f"Sending test message from {message['from']} to {message['to']}...")
                 self.assertRaises(SMTPRecipientsRefused, client.sendmail, **dict(from_addr=message['from'],
                                 to_addrs=message['to'],
                                 msg=TEST_MESSAGE.format(to=message['to'], msg_from=message['from'], cc=message['cc'], subject=message['subject'], body=message['body'], test=test_name)))
                 # NOTE: sendmail will raise an error if the message is not accepted
+            logger.info("closing client...")
             client.close()
+            logger.info("Closing server...")
             server.close()
 
 if __name__ == '__main__':
