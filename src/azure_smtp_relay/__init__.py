@@ -94,4 +94,4 @@ from azure.identity import ClientSecretCredential
 from azure.core.credentials import AzureKeyCredential
 from .relay import AzureSmtpRelay
 
-VERSION = (1, 0, 7)    # updated 2024-04-21 19:10:49.472038 from : (1, 0, 6)
+VERSION = (1, 0, 10)    # updated 2025-09-09 08:27:08.134723 from : (1, 0, 9)
