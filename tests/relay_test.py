@@ -12,7 +12,6 @@ from logging_handler import create_logger, INFO
 PORT_LOCK = Lock()
 LAST_PORT = 0
 
-
 def get_port(port_range:list) -> int:
     ''' Issue a port from the specified port range, save the port issued to start the next time '''
     print(port_range)
