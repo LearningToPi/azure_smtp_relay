@@ -1,6 +1,6 @@
 [project]
 name = "azure_smtp_relay"
-version = "1.0.10"
+version = "1.0.11"
 description = "Python SMTP service using aiosmtpd that relays through Azure Email Communication Service"
 authors = [{name = "Thomas Dunteman", email= "git@learningtopi.com"}]
 keywords = ["queue", "thread", "async"]
