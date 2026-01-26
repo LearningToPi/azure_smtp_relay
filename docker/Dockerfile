@@ -1,26 +1,26 @@
-FROM python:3.11
+FROM python:3.12
 
 ARG USERNAME
 ARG UID
 ENV USERNAME=${USERNAME:-python}
 ENV UID=${UID:-40000}
 
-LABEL org.label-schema.schema-version = "1.0"
-LABEL org.label-schema.name "Azure Python SMTP Relay Service"
-LABEL org.label-schema.vendor "LearningToPi.com"
-LABEL org.label-schema.description "Python service to relay email from SMTP clients using Azure Communication Service."
-LABEL org.label-schema.usage "/app/README.md"
-LABEL org.label-schema.url = "https://www.learningtopi.com/python-modules-applications/azure_smtp_relay/"
-LABEL org.label-schema.vcs-url = "https://github.com/LearningToPi/azure_smtp_relay/tree/v1.0.4"
-LABEL org.label-schema.vcs-ref = "0965349"
-LABEL org.label-schema.version = "1.0.6"
-LABEL org.label-schema.release = "py3.11-1.0.6"
-LABEL org.label-schema.architecture = "amd64"
-LABEL org.label-schema.changelog-url = "https://github.com/LearningToPi/azure_smtp_relay/blob/main/release_notes/v1.0.4.md"
+LABEL org.label-schema.schema-version="1.0"
+LABEL org.label-schema.name="Azure Python SMTP Relay Service"
+LABEL org.label-schema.vendor="LearningToPi.com"
+LABEL org.label-schema.description="Python service to relay email from SMTP clients using Azure Communication Service."
+LABEL org.label-schema.usage="/app/README.md"
+LABEL org.label-schema.url="https://www.learningtopi.com/python-modules-applications/azure_smtp_relay/"
+LABEL org.label-schema.vcs-url="https://github.com/LearningToPi/azure_smtp_relay/tree/v1.0.12"
+LABEL org.label-schema.vcs-ref="0965349"
+LABEL org.label-schema.version="1.0.12"
+LABEL org.label-schema.release="py3.12-1.0.12"
+LABEL org.label-schema.architecture="amd64"
+LABEL org.label-schema.changelog-url="https://github.com/LearningToPi/azure_smtp_relay/blob/main/release_notes/v1.0.12.md"
 
-LABEL org.label-schema.docker.cmd = 'docker run --name azure_smtp_relay -d -p 25:10025 -v config.toml:/app/config.toml learningtopi/azure_smtp_relay --subnets 192.168.0.0/16 --domains my-email-domain.com'
-LABEL org.label-schema.docker.cmd.devel = 'docker run --name azure_smtp_relay -d -p 25:10025 -v config.toml:/app/config.toml learningtopi/azure_smtp_relay --subnets 192.168.0.0/16 --domains my-email-domain.com --log-level DEBUG'
-LABEL org.label-schema.docker.cmd.help = "docker run --rm -it learningtopi/azure_smtp_relay --help"
+LABEL org.label-schema.docker.cmd="docker run --name azure_smtp_relay -d -p 25:10025 -v config.toml:/app/config.toml learningtopi/azure_smtp_relay --subnets 192.168.0.0/16 --domains my-email-domain.com"
+LABEL org.label-schema.docker.cmd.devel="docker run --name azure_smtp_relay -d -p 25:10025 -v config.toml:/app/config.toml learningtopi/azure_smtp_relay --subnets 192.168.0.0/16 --domains my-email-domain.com --log-level DEBUG"
+LABEL org.label-schema.docker.cmd.help="docker run --rm -it learningtopi/azure_smtp_relay --help"
 
 EXPOSE 10025/tcp
 WORKDIR /apps
